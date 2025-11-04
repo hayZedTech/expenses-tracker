@@ -23,47 +23,30 @@ export default function Auth() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
 
-  // Detect and handle password recovery link
+  // Handle password recovery via query params (works on Vercel)
   useEffect(() => {
-    try {
-      const rawHash = window.location.hash || '';
-      if (!rawHash) return;
+    const params = new URLSearchParams(window.location.search);
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token') ?? '';
+    const type = params.get('type');
+    const emailFromLink = params.get('email');
 
-      let cleaned = rawHash.replace(/^#\/?/, '');
-      cleaned = cleaned.replace('#', '&');
+    if (type === 'recovery' && access_token) {
+      (async () => {
+        setLoading(true);
+        try {
+          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) console.warn('Error setting session:', error);
 
-      const params = new URLSearchParams(cleaned);
-      const access_token = params.get('access_token');
-      const refresh_token = params.get('refresh_token') ?? '';
-      const type = params.get('type');
-      const emailFromLink = params.get('email');
+          if (emailFromLink) setEmail(emailFromLink);
+          setIsResetMode(true);
 
-      if (type === 'recovery' && access_token) {
-        (async () => {
-          setLoading(true);
-          try {
-            const sessionObj: { access_token: string; refresh_token: string } = {
-              access_token,
-              refresh_token,
-            };
-            const res = await supabase.auth.setSession(sessionObj);
-            if (res.error) {
-              console.warn('Error when setting session from recovery link:', res.error);
-            }
-
-            if (emailFromLink) setEmail(emailFromLink);
-            setIsResetMode(true);
-
-            const newUrl =
-              window.location.pathname + window.location.search + '#/auth';
-            window.history.replaceState(null, '', newUrl);
-          } finally {
-            setLoading(false);
-          }
-        })();
-      }
-    } catch (err) {
-      console.warn('Error parsing URL hash for recovery:', err);
+          // Clean URL so tokens are not visible
+          window.history.replaceState(null, '', '/auth');
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
   }, []);
 
@@ -94,7 +77,6 @@ export default function Auth() {
     try {
       if (isResetMode) {
         if (!newPassword) throw new Error('Please enter a new password');
-
         const { error } = await supabase.auth.updateUser({ password: newPassword });
         if (error) throw error;
 
@@ -176,9 +158,10 @@ export default function Auth() {
 
     if (!userEmail) return;
 
-    const redirectTo = 'https://expenses-tracker-swart-eight.vercel.app/#/auth';
-
+    // Use query param redirect (no hash)
+    const redirectTo = 'https://expenses-tracker-swart-eight.vercel.app/auth';
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
+
     if (error) {
       await Swal.fire({ icon: 'error', title: 'Error', text: error.message });
     } else {
