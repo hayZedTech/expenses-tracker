@@ -22,21 +22,20 @@ export default function Auth() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
 
-  // Detect if user is coming from a Supabase password reset link
+  // Detect Supabase password reset link on mount
   useEffect(() => {
-    const hash = window.location.hash; // #access_token=...&type=recovery&email=...
-    if (!hash) return;
+    if (window.location.hash.includes('access_token')) {
+      const params = new URLSearchParams(window.location.hash.replace('#', '?'));
+      const type = params.get('type');
+      const emailFromLink = params.get('email');
 
-    const params = new URLSearchParams(hash.replace('#', '?'));
-    const type = params.get('type');
-    const emailFromLink = params.get('email');
+      if (type === 'recovery' && emailFromLink) {
+        setIsResetMode(true);
+        setEmail(emailFromLink);
 
-    if (type === 'recovery' && emailFromLink) {
-      setIsResetMode(true);
-      setEmail(emailFromLink);
-
-      // Clean URL hash so it doesn't stay in browser
-      window.history.replaceState(null, '', window.location.pathname);
+        // Clean URL so hash doesn't stay
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     }
   }, []);
 
@@ -66,9 +65,7 @@ export default function Auth() {
 
     try {
       if (isResetMode) {
-        // Reset password
         const { error } = await supabase.auth.updateUser({ password: newPassword });
-
         if (error) throw error;
 
         await Swal.fire({
