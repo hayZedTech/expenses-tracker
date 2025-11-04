@@ -38,6 +38,13 @@ export default function Dashboard(): JSX.Element {
   const [email, setEmail] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [budget, setBudget] = useState<number | "">("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // per-button loading states so only the selected button spins
+  const [formLoading, setFormLoading] = useState(false); // add/save expense
+  const [budgetLoading, setBudgetLoading] = useState(false); // save budget
+  const [clearLoading, setClearLoading] = useState(false); // clear all
+  const [deletingId, setDeletingId] = useState<string | null>(null); // delete per-expense
 
   const navigate = useNavigate();
 
@@ -119,10 +126,108 @@ export default function Dashboard(): JSX.Element {
     fetchBudget();
   }, [email, filter]);
 
-  // --- ADD EXPENSE
+  // This function drives the button spinner and performs add/update actions.
+  async function handleAddOrSave() {
+    setFormLoading(true);
+    try {
+      if (!description || !amount || !email) {
+        // stop spinner before exit
+        setFormLoading(false);
+        return;
+      }
+
+      if (editingId) {
+        // Update flow (same as your update code)
+        const { error } = await supabase
+          .from("expenses__expenses")
+          .update({ description, amount, category })
+          .eq("id", editingId);
+        if (error) {
+          console.error("Error updating expense:", error);
+          await Swal.fire({ icon: "error", title: "Error", text: error.message || "Failed to update expense" });
+        } else {
+          const updatedDescription = description;
+          const updatedAmount = amount as number;
+          setDescription("");
+          setAmount("");
+          setCategory("Other");
+          setEditingId(null);
+          await fetchExpenses();
+          Swal.fire({
+            icon: "success",
+            title: "Expense updated",
+            text: `${updatedDescription} — ₦${Number(updatedAmount).toLocaleString()}`,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      } else {
+        // Insert flow (same as your insert code)
+        const { error } = await supabase.from("expenses__expenses").insert({
+          email,
+          description,
+          amount,
+          category,
+        });
+        if (error) {
+          console.error("Error adding expense:", error);
+          await Swal.fire({ icon: "error", title: "Error", text: error.message || "Failed to add expense" });
+        } else {
+          const addedDescription = description;
+          const addedAmount = amount as number;
+          setDescription("");
+          setAmount("");
+          setCategory("Other");
+          await fetchExpenses();
+          Swal.fire({
+            icon: "success",
+            title: "Expense added!",
+            text: `${addedDescription} — ₦${Number(addedAmount).toLocaleString()}`,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  // --- ADD or UPDATE EXPENSE (form submit - still supported via Enter)
   async function handleAddExpense(e: React.FormEvent) {
     e.preventDefault();
     if (!description || !amount || !email) return;
+
+    if (editingId) {
+      // Update flow
+      const { error } = await supabase
+        .from("expenses__expenses")
+        .update({ description, amount, category })
+        .eq("id", editingId);
+      if (error) {
+        console.error("Error updating expense:", error);
+      } else {
+        const updatedDescription = description;
+        const updatedAmount = amount as number;
+        setDescription("");
+        setAmount("");
+        setCategory("Other");
+        setEditingId(null);
+        fetchExpenses();
+        Swal.fire({
+          icon: "success",
+          title: "Expense updated",
+          text: `${updatedDescription} — ₦${Number(updatedAmount).toLocaleString()}`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+      return;
+    }
+
+    // Insert flow
     const { error } = await supabase.from("expenses__expenses").insert({
       email,
       description,
@@ -150,20 +255,105 @@ export default function Dashboard(): JSX.Element {
   }
 
   // --- DELETE EXPENSE
-  async function handleDeleteExpense(id: string, desc: string, amt?: number) {
+
+
+async function handleDeleteExpense(id: string, desc: string, amt?: number) {
+  // Ask for confirmation first
+  const confirmResult = await Swal.fire({
+    title: "Are you sure?",
+    text: `Delete "${desc}"${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}?`,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#d33",
+    cancelButtonColor: "#3085d6",
+    confirmButtonText: "Yes, delete it",
+    cancelButtonText: "Cancel",
+  });
+
+  // If user cancelled, stop here
+  if (!confirmResult.isConfirmed) return;
+
+  setDeletingId(id);
+
+  try {
     const { error } = await supabase.from("expenses__expenses").delete().eq("id", id);
+
     if (error) {
       console.error("Error deleting expense:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to delete expense. Try again.",
+      });
     } else {
       fetchExpenses();
-      const formatted = typeof amt === "number" ? ` — ₦${Number(amt).toLocaleString()}` : "";
       Swal.fire({
         icon: "info",
         title: "Expense deleted",
-        text: `${desc}${formatted}`,
+        text: `${desc}${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}`,
         timer: 2000,
         showConfirmButton: false,
       });
+    }
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: "error",
+      title: "Unexpected error",
+      text: "Something went wrong.",
+    });
+  } finally {
+    setDeletingId(null);
+  }
+}
+
+
+  // --- EDIT: populate form with an expense
+  function handleEditExpense(exp: Expense) {
+    setEditingId(exp.id);
+    setDescription(exp.description);
+    setAmount(exp.amount);
+    setCategory(exp.category);
+    // scroll to top of form if needed (keeps user focus)
+    const top = document.querySelector("form");
+    if (top) top.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // --- CANCEL EDIT
+  function handleCancelEdit() {
+    setEditingId(null);
+    setDescription("");
+    setAmount("");
+    setCategory("Other");
+  }
+
+  // --- CLEAR ALL EXPENSES for this user (with confirm)
+  async function handleClearExpenses() {
+    if (!email) return;
+    const result = await Swal.fire({
+      title: "Clear all expenses?",
+      text: "This will permanently delete all your expenses. This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, clear all",
+      cancelButtonText: "Cancel",
+    });
+    if (result.isConfirmed) {
+      setClearLoading(true);
+      try {
+        const { error } = await supabase.from("expenses__expenses").delete().eq("email", email);
+        if (error) {
+          console.error("Error clearing expenses:", error);
+          await Swal.fire({ icon: "error", title: "Error", text: error.message || "Failed to clear expenses" });
+        } else {
+          fetchExpenses();
+          await Swal.fire({ icon: "success", title: "Cleared", text: "All expenses removed." });
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setClearLoading(false);
+      }
     }
   }
 
@@ -171,25 +361,35 @@ export default function Dashboard(): JSX.Element {
   async function handleSaveBudget(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!email) return;
-    const budgetValue = typeof budget === "string" && budget !== "" ? Number(budget) : budget;
-    if (budgetValue === "" || budgetValue === null) return;
+    setBudgetLoading(true);
+    try {
+      const budgetValue = typeof budget === "string" && budget !== "" ? Number(budget) : budget;
+      if (budgetValue === "" || budgetValue === null) {
+        setBudgetLoading(false);
+        return;
+      }
 
-    const { error } = await supabase
-      .from("expenses_profiles")
-      .update({ budget: budgetValue })
-      .eq("email", email);
+      const { error } = await supabase
+        .from("expenses_profiles")
+        .update({ budget: budgetValue })
+        .eq("email", email);
 
-    if (error) {
-      console.error("Error saving budget:", error);
-    } else {
-      fetchBudget();
-      Swal.fire({
-        icon: "success",
-        title: "Budget saved",
-        text: `₦${Number(budgetValue).toLocaleString()}`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      if (error) {
+        console.error("Error saving budget:", error);
+      } else {
+        fetchBudget();
+        Swal.fire({
+          icon: "success",
+          title: "Budget saved",
+          text: `₦${Number(budgetValue).toLocaleString()}`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBudgetLoading(false);
     }
   }
 
@@ -311,7 +511,7 @@ export default function Dashboard(): JSX.Element {
           </div>
         </div>
 
-        {/* Budget form + export */}
+        {/* Budget form + export + clear */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <form onSubmit={handleSaveBudget} className="flex gap-2 items-center">
             <input
@@ -321,10 +521,63 @@ export default function Dashboard(): JSX.Element {
               onChange={(e) => setBudget(e.target.value === "" ? "" : Number(e.target.value))}
               className="px-3 py-2 rounded-lg border"
             />
-            <button type="submit" className="bg-green-600 text-white px-3 py-2 rounded-lg cursor-pointer">Save Budget</button>
+            <button
+              type="submit"
+              className="bg-green-600 text-white px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2"
+              disabled={budgetLoading}
+            >
+              {budgetLoading ? (
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                  </svg>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                "Save Budget"
+              )}
+            </button>
           </form>
           <div className="flex items-center gap-3">
             <button onClick={exportCSV} className="bg-indigo-600 text-white px-3 py-2 rounded-lg cursor-pointer">Export CSV</button>
+            <button
+              onClick={handleClearExpenses}
+              className="bg-red-500 text-white px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2"
+              disabled={clearLoading}
+            >
+              {clearLoading ? (
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                  </svg>
+                  <span>Clearing...</span>
+                </>
+              ) : (
+                "Clear All"
+              )}
+            </button>
           </div>
         </div>
 
@@ -433,7 +686,52 @@ export default function Dashboard(): JSX.Element {
                   <option>Other</option>
                 </select>
               </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer">Add</button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  disabled={formLoading}
+                  onClick={handleAddOrSave}
+                >
+                  {formLoading ? (
+                    <>
+                      <svg
+                        className="animate-spin h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        ></path>
+                      </svg>
+                      <span>{editingId ? "Saving..." : "Adding..."}</span>
+                    </>
+                  ) : (
+                    <span>{editingId ? "Save" : "Add"}</span>
+                  )}
+                </button>
+
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="bg-gray-300 text-gray-800 px-3 py-2 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </form>
 
             {/* Recent expenses */}
@@ -454,7 +752,48 @@ export default function Dashboard(): JSX.Element {
                       </div>
                       <div className="flex-shrink-0 flex flex-col items-end gap-1">
                         <p className="font-semibold text-green-700">₦{exp.amount.toLocaleString()}</p>
-                        <button onClick={() => handleDeleteExpense(exp.id, exp.description, exp.amount)} className="text-red-600 text-sm cursor-pointer">Delete</button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditExpense(exp)}
+                            className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-600 hover:text-white transition cursor-pointer"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteExpense(exp.id, exp.description, exp.amount)}
+                            className="text-red-600 text-sm cursor-pointer flex items-center gap-2 border border-red-600 rounded hover:bg-red-600 hover:text-white transition px-2"
+                            disabled={deletingId === exp.id}
+                          >
+                            {deletingId === exp.id ? (
+                              <>
+                                <svg
+                                  className="animate-spin h-4 w-4"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  ></circle>
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                  ></path>
+                                </svg>
+                                <span>Deleting...</span>
+                              </>
+                            ) : (
+                              "Delete"
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </li>
                   ))}

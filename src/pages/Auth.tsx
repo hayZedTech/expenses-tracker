@@ -1,6 +1,6 @@
 // src/pages/Auth.tsx
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../contexts/useAuthStore';
 import Swal from 'sweetalert2';
@@ -14,43 +14,13 @@ export default function Auth() {
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [message, setMessage] = useState('');
-  const [isResetMode, setIsResetMode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // <-- password eye
 
   const navigate = useNavigate();
-  const location = useLocation(); // Track query params
   const setUser = useAuthStore((state) => state.setUser);
-
-  // Detect and handle password recovery link dynamically
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const access_token = params.get('access_token');
-    const refresh_token = params.get('refresh_token') ?? '';
-    const type = params.get('type');
-    const emailFromLink = params.get('email');
-
-    if (type === 'recovery' && access_token) {
-      (async () => {
-        setLoading(true);
-        try {
-          // Set Supabase session
-          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (error) console.warn('Error setting session:', error);
-
-          if (emailFromLink) setEmail(emailFromLink);
-          setIsResetMode(true);
-
-          // Clean URL so tokens are not visible
-          navigate('/auth', { replace: true });
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }
-  }, [location.search, navigate]);
 
   function isDuplicateEmailError(err: unknown) {
     const msg = (
@@ -71,32 +41,12 @@ export default function Auth() {
     );
   }
 
-  // Handle login, signup, or password update
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
-      if (isResetMode) {
-        if (!newPassword) throw new Error('Please enter a new password');
-
-        const { error } = await supabase.auth.updateUser({ password: newPassword });
-        if (error) throw error;
-
-        await Swal.fire({
-          icon: 'success',
-          title: 'Password Updated',
-          text: 'Your password has been updated. You can now log in.',
-        });
-
-        setIsResetMode(false);
-        setPassword('');
-        setNewPassword('');
-        setIsLogin(true);
-        return;
-      }
-
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -156,7 +106,6 @@ export default function Auth() {
     }
   }
 
-  // Handle forgot password
   async function handleForgotPassword() {
     const { value: userEmail } = await Swal.fire({
       title: 'Enter your email',
@@ -168,7 +117,7 @@ export default function Auth() {
 
     if (!userEmail) return;
 
-    const redirectTo = 'https://expenses-tracker-swart-eight.vercel.app/auth';
+    const redirectTo = `${window.location.origin}/reset-password`; // dedicated page
 
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
     if (error) {
@@ -186,11 +135,11 @@ export default function Auth() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-linear-to-br from-gray-100 to-gray-300 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          {isResetMode ? 'Reset Password' : isLogin ? 'Login' : 'Sign Up'}
+          {isLogin ? 'Login' : 'Sign Up'}
         </h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {!isLogin && !isResetMode && (
+          {!isLogin && (
             <input
               type="text"
               placeholder="Full Name"
@@ -208,45 +157,37 @@ export default function Auth() {
             onChange={(e) => setEmail(e.target.value)}
             required
             className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isResetMode}
           />
 
-          {isResetMode ? (
+          {/* Password field with eye */}
+          <div className="relative">
             <input
-              type="password"
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          ) : (
-            <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          )}
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-2 text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
 
           <button
             type="submit"
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold transition-colors disabled:bg-gray-400 cursor-pointer"
           >
-            {loading
-              ? 'Processing...'
-              : isResetMode
-              ? 'Update Password'
-              : isLogin
-              ? 'Login'
-              : 'Sign Up'}
+            {loading ? 'Processing...' : isLogin ? 'Login' : 'Sign Up'}
           </button>
         </form>
 
-        {!isResetMode && isLogin && (
+        {isLogin && (
           <p
             className="text-sm text-right mt-1 text-blue-600 hover:underline cursor-pointer"
             onClick={handleForgotPassword}
@@ -255,20 +196,18 @@ export default function Auth() {
           </p>
         )}
 
-        {!isResetMode && (
-          <p className="text-center mt-4 text-gray-700">
-            {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
-            <span
-              className="text-blue-600 hover:underline cursor-pointer"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setMessage('');
-              }}
-            >
-              {isLogin ? 'Sign Up' : 'Login'}
-            </span>
-          </p>
-        )}
+        <p className="text-center mt-4 text-gray-700">
+          {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <span
+            className="text-blue-600 hover:underline cursor-pointer"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setMessage('');
+            }}
+          >
+            {isLogin ? 'Sign Up' : 'Login'}
+          </span>
+        </p>
 
         {message && (
           <p className={`mt-4 text-center ${message.includes('❌') ? 'text-red-500' : 'text-green-600'}`}>
