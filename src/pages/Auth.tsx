@@ -1,7 +1,7 @@
 // src/pages/Auth.tsx
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../contexts/useAuthStore';
 import Swal from 'sweetalert2';
 
@@ -21,11 +21,12 @@ export default function Auth() {
   const [isResetMode, setIsResetMode] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation(); // Track query params
   const setUser = useAuthStore((state) => state.setUser);
 
-  // Handle password recovery via query params (works on Vercel)
+  // Detect and handle password recovery link dynamically
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token') ?? '';
     const type = params.get('type');
@@ -35,6 +36,7 @@ export default function Auth() {
       (async () => {
         setLoading(true);
         try {
+          // Set Supabase session
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
           if (error) console.warn('Error setting session:', error);
 
@@ -42,13 +44,13 @@ export default function Auth() {
           setIsResetMode(true);
 
           // Clean URL so tokens are not visible
-          window.history.replaceState(null, '', '/auth');
+          navigate('/auth', { replace: true });
         } finally {
           setLoading(false);
         }
       })();
     }
-  }, []);
+  }, [location.search, navigate]);
 
   function isDuplicateEmailError(err: unknown) {
     const msg = (
@@ -69,6 +71,7 @@ export default function Auth() {
     );
   }
 
+  // Handle login, signup, or password update
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -77,6 +80,7 @@ export default function Auth() {
     try {
       if (isResetMode) {
         if (!newPassword) throw new Error('Please enter a new password');
+
         const { error } = await supabase.auth.updateUser({ password: newPassword });
         if (error) throw error;
 
@@ -128,7 +132,12 @@ export default function Auth() {
         navigate('/dashboard');
       }
     } catch (err: unknown) {
-      const raw = (err as any)?.message || (err as any)?.error || (err as any)?.detail || (err as any)?.hint || JSON.stringify(err);
+      const raw =
+        (err as any)?.message ||
+        (err as any)?.error ||
+        (err as any)?.detail ||
+        (err as any)?.hint ||
+        JSON.stringify(err);
       const msg = (raw || 'An error occurred').toString();
 
       if (!isLogin && isDuplicateEmailError(err)) {
@@ -147,6 +156,7 @@ export default function Auth() {
     }
   }
 
+  // Handle forgot password
   async function handleForgotPassword() {
     const { value: userEmail } = await Swal.fire({
       title: 'Enter your email',
@@ -158,10 +168,9 @@ export default function Auth() {
 
     if (!userEmail) return;
 
-    // Use query param redirect (no hash)
     const redirectTo = 'https://expenses-tracker-swart-eight.vercel.app/auth';
-    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
 
+    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
     if (error) {
       await Swal.fire({ icon: 'error', title: 'Error', text: error.message });
     } else {
@@ -227,7 +236,13 @@ export default function Auth() {
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold transition-colors disabled:bg-gray-400 cursor-pointer"
           >
-            {loading ? 'Processing...' : isResetMode ? 'Update Password' : isLogin ? 'Login' : 'Sign Up'}
+            {loading
+              ? 'Processing...'
+              : isResetMode
+              ? 'Update Password'
+              : isLogin
+              ? 'Login'
+              : 'Sign Up'}
           </button>
         </form>
 
