@@ -1,3 +1,4 @@
+// src/pages/Auth.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -22,29 +23,65 @@ export default function Auth() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
 
-  // Detect Supabase password reset link on mount
+  // When the app receives a Supabase recovery link it often looks like:
+  //   http://.../#/auth#access_token=...&type=recovery&email=...
+  // This effect extracts tokens, sets the session, and shows the reset UI.
   useEffect(() => {
-    if (window.location.hash.includes('access_token')) {
-      const params = new URLSearchParams(window.location.hash.replace('#', '?'));
+    try {
+      const rawHash = window.location.hash || '';
+      if (!rawHash) return;
+
+      // Normalize the hash so URLSearchParams can parse it.
+      // Examples handled: "#/auth#access_token=..." or "#access_token=..."
+      let cleaned = rawHash.replace(/^#\/?/, ''); // remove leading "#/" or "#"
+      cleaned = cleaned.replace('#', '&'); // "auth#access_token=..." => "auth&access_token=..."
+
+      const params = new URLSearchParams(cleaned);
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token') ?? ''; // ensure string
       const type = params.get('type');
       const emailFromLink = params.get('email');
 
-      if (type === 'recovery' && emailFromLink) {
-        setIsResetMode(true);
-        setEmail(emailFromLink);
+      if (type === 'recovery' && access_token) {
+        (async () => {
+          setLoading(true);
+          try {
+            // setSession expects { access_token: string; refresh_token: string }
+            const sessionObj: { access_token: string; refresh_token: string } = {
+              access_token,
+              refresh_token,
+            };
 
-        // Clean URL so hash doesn't stay
-        window.history.replaceState(null, '', window.location.pathname);
+            const res = await supabase.auth.setSession(sessionObj);
+            if (res.error) {
+              // warn but continue — user can still reset using the form if email provided
+              console.warn('setSession error from recovery link:', res.error);
+            }
+
+            if (emailFromLink) setEmail(emailFromLink);
+            setIsResetMode(true);
+
+            // Clean URL so tokens don't remain visible (keep hash router route)
+            const newUrl = window.location.pathname + window.location.search + '#/auth';
+            window.history.replaceState(null, '', newUrl);
+          } finally {
+            setLoading(false);
+          }
+        })();
       }
+    } catch (err) {
+      console.warn('Error parsing URL hash for supabase recovery:', err);
     }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function isDuplicateEmailError(err: any) {
+  function isDuplicateEmailError(err: unknown) {
     const msg = (
-      err?.message ||
-      err?.error_description ||
-      err?.details ||
-      err?.hint ||
+      (err as any)?.message ||
+      (err as any)?.error_description ||
+      (err as any)?.details ||
+      (err as any)?.hint ||
       JSON.stringify(err)
     )
       .toString()
@@ -65,6 +102,9 @@ export default function Auth() {
 
     try {
       if (isResetMode) {
+        if (!newPassword) throw new Error('Enter a new password');
+
+        // updateUser uses the current session, which we set earlier via setSession
         const { error } = await supabase.auth.updateUser({ password: newPassword });
         if (error) throw error;
 
@@ -115,8 +155,8 @@ export default function Auth() {
         });
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      const raw = err?.message || err?.error || err?.detail || err?.hint || JSON.stringify(err);
+    } catch (err: unknown) {
+      const raw = (err as any)?.message || (err as any)?.error || (err as any)?.detail || (err as any)?.hint || JSON.stringify(err);
       const msg = (raw || 'An error occurred').toString();
 
       if (!isLogin && isDuplicateEmailError(err)) {
@@ -146,9 +186,10 @@ export default function Auth() {
 
     if (!userEmail) return;
 
-    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-      redirectTo: `${window.location.origin}/auth`,
-    });
+    // Use hash-based redirect so the recovery link lands correctly with HashRouter
+    const redirectTo = `${window.location.origin}/#/auth`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
 
     if (error) {
       await Swal.fire({ icon: 'error', title: 'Error', text: error.message });
@@ -215,13 +256,7 @@ export default function Auth() {
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold transition-colors disabled:bg-gray-400 cursor-pointer"
           >
-            {loading
-              ? 'Processing...'
-              : isResetMode
-              ? 'Update Password'
-              : isLogin
-              ? 'Login'
-              : 'Sign Up'}
+            {loading ? 'Processing...' : isResetMode ? 'Update Password' : isLogin ? 'Login' : 'Sign Up'}
           </button>
         </form>
 
