@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../contexts/useAuthStore';
 
+interface User {
+  email: string;
+  fullname?: string;
+}
+
 export default function Auth() {
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
@@ -21,29 +26,28 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error, data: _loginData } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        setUser({ email }); // store user in Zustand
+        setUser({ email } as User);
         setMessage('✅ Logged in successfully!');
         navigate('/dashboard');
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { error, data: signUpData } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
-        if (data.user) {
+        if (signUpData.user) {
           const { error: upsertError } = await supabase
             .from('expenses_profiles')
             .upsert({
-              id: data.user.id,
+              id: signUpData.user.id,
               fullname,
               email,
-              password,
             });
           if (upsertError) throw upsertError;
         }
 
-        setUser({ email, fullname }); // store user in Zustand
+        setUser({ email, fullname } as User);
         setMessage('✅ Account created successfully! Check your email to confirm.');
         navigate('/dashboard');
       }
@@ -55,7 +59,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-linear-to-br from-gray-100 to-gray-300 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">{isLogin ? 'Login' : 'Sign Up'}</h2>
 
@@ -67,7 +71,7 @@ export default function Auth() {
               value={fullname}
               onChange={(e) => setFullname(e.target.value)}
               required
-              className="border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           )}
           <input
@@ -76,7 +80,7 @@ export default function Auth() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="password"
@@ -84,12 +88,12 @@ export default function Auth() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold transition-all disabled:bg-gray-400"
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold transition-colors disabled:bg-gray-400"
           >
             {loading ? 'Processing...' : isLogin ? 'Login' : 'Sign Up'}
           </button>

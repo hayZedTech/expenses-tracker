@@ -66,15 +66,13 @@ export default function Dashboard(): JSX.Element {
     }
   }
 
- // --- FETCH EXPENSES with filter
-async function fetchExpenses() {
-  if (!email) return;
-  setLoading(true);
+  // --- FETCH EXPENSES with filter
+  async function fetchExpenses() {
+    if (!email) return;
+    setLoading(true);
 
-  try {
-    // build query without generics to avoid deep/type recursion issues
-    let query: any = supabase
-      .from("expenses__expenses")
+    let query = supabase
+      .from<Expense>("expenses__expenses")
       .select("*")
       .eq("email", email)
       .order("created_at", { ascending: false });
@@ -93,24 +91,11 @@ async function fetchExpenses() {
       query = query.gte("created_at", start);
     }
 
-    const res = await query; // res will be { data, error, status, ... }
-    const data = res?.data as Expense[] | null;
-    const error = res?.error;
-
-    if (error) {
-      console.error("Error fetching expenses:", error);
-      setExpenses([]);
-    } else {
-      setExpenses(data ?? []);
-    }
-  } catch (err) {
-    console.error("Error fetching expenses:", err);
-    setExpenses([]);
-  } finally {
+    const { data, error } = await query;
+    if (error) console.error("Error fetching expenses:", error);
+    else if (data) setExpenses(data);
     setLoading(false);
   }
-}
-
 
   useEffect(() => {
     fetchExpenses();
@@ -220,7 +205,7 @@ async function fetchExpenses() {
 
   // --- UI
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-white transition-colors">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white transition-colors">
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
