@@ -1,5 +1,5 @@
 // src/pages/Dashboard.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -46,7 +46,13 @@ export default function Dashboard(): JSX.Element {
   const [clearLoading, setClearLoading] = useState(false); // clear all
   const [deletingId, setDeletingId] = useState<string | null>(null); // delete per-expense
 
+  // id that was just saved (used to briefly highlight the saved item)
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
+
   const navigate = useNavigate();
+
+  // ref for description input so we can focus/select it when editing
+  const descriptionRef = useRef<HTMLInputElement | null>(null);
 
   // --- AUTH: get user & listen for changes
   useEffect(() => {
@@ -138,6 +144,7 @@ export default function Dashboard(): JSX.Element {
 
       if (editingId) {
         // Update flow (same as your update code)
+        const idToSave = editingId;
         const { error } = await supabase
           .from("expenses__expenses")
           .update({ description, amount, category })
@@ -152,7 +159,17 @@ export default function Dashboard(): JSX.Element {
           setAmount("");
           setCategory("Other");
           setEditingId(null);
+
+          // preserve scroll position while reloading list
+          const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
           await fetchExpenses();
+
+          // briefly highlight the saved item
+          setJustSavedId(idToSave);
+          setTimeout(() => setJustSavedId(null), 2200);
+
+          if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
+
           Swal.fire({
             icon: "success",
             title: "Expense updated",
@@ -162,23 +179,44 @@ export default function Dashboard(): JSX.Element {
           });
         }
       } else {
-        // Insert flow (same as your insert code)
-        const { error } = await supabase.from("expenses__expenses").insert({
-          email,
-          description,
-          amount,
-          category,
-        });
-        if (error) {
-          console.error("Error adding expense:", error);
-          await Swal.fire({ icon: "error", title: "Error", text: error.message || "Failed to add expense" });
+        // Insert flow (capture returned id if available)
+        const insertRes = await supabase
+          .from("expenses__expenses")
+          .insert({
+            email,
+            description,
+            amount,
+            category,
+          })
+          .select(); // request returned row(s)
+
+        const insertError = (insertRes as any)?.error;
+        const insertData = (insertRes as any)?.data;
+
+        if (insertError) {
+          console.error("Error adding expense:", insertError);
+          await Swal.fire({ icon: "error", title: "Error", text: insertError.message || "Failed to add expense" });
         } else {
           const addedDescription = description;
           const addedAmount = amount as number;
+          // try to get inserted id
+          const addedId = Array.isArray(insertData) && insertData.length > 0 ? insertData[0].id : null;
+
           setDescription("");
           setAmount("");
           setCategory("Other");
+
+          // preserve scroll position while reloading list
+          const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
           await fetchExpenses();
+
+          if (addedId) {
+            setJustSavedId(addedId);
+            setTimeout(() => setJustSavedId(null), 2200);
+          }
+
+          if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
+
           Swal.fire({
             icon: "success",
             title: "Expense added!",
@@ -211,11 +249,22 @@ export default function Dashboard(): JSX.Element {
       } else {
         const updatedDescription = description;
         const updatedAmount = amount as number;
+        const savedId = editingId;
         setDescription("");
         setAmount("");
         setCategory("Other");
         setEditingId(null);
-        fetchExpenses();
+
+        const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
+        await fetchExpenses();
+
+        if (savedId) {
+          setJustSavedId(savedId);
+          setTimeout(() => setJustSavedId(null), 2200);
+        }
+
+        if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
+
         Swal.fire({
           icon: "success",
           title: "Expense updated",
@@ -243,7 +292,11 @@ export default function Dashboard(): JSX.Element {
       setDescription("");
       setAmount("");
       setCategory("Other");
-      fetchExpenses();
+
+      const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
+      await fetchExpenses();
+      if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
+
       Swal.fire({
         icon: "success",
         title: "Expense added!",
@@ -255,58 +308,59 @@ export default function Dashboard(): JSX.Element {
   }
 
   // --- DELETE EXPENSE
+  async function handleDeleteExpense(id: string, desc: string, amt?: number) {
+    // Ask for confirmation first
+    const confirmResult = await Swal.fire({
+      title: "Are you sure?",
+      text: `Delete "${desc}"${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it",
+      cancelButtonText: "Cancel",
+    });
 
+    // If user cancelled, stop here
+    if (!confirmResult.isConfirmed) return;
 
-async function handleDeleteExpense(id: string, desc: string, amt?: number) {
-  // Ask for confirmation first
-  const confirmResult = await Swal.fire({
-    title: "Are you sure?",
-    text: `Delete "${desc}"${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}?`,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#d33",
-    cancelButtonColor: "#3085d6",
-    confirmButtonText: "Yes, delete it",
-    cancelButtonText: "Cancel",
-  });
+    setDeletingId(id);
 
-  // If user cancelled, stop here
-  if (!confirmResult.isConfirmed) return;
+    try {
+      const { error } = await supabase.from("expenses__expenses").delete().eq("id", id);
 
-  setDeletingId(id);
+      if (error) {
+        console.error("Error deleting expense:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Failed to delete expense. Try again.",
+        });
+      } else {
+        // preserve scroll position while reloading list
+        const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
+        await fetchExpenses();
+        if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
 
-  try {
-    const { error } = await supabase.from("expenses__expenses").delete().eq("id", id);
-
-    if (error) {
-      console.error("Error deleting expense:", error);
+        Swal.fire({
+          icon: "info",
+          title: "Expense deleted",
+          text: `${desc}${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      console.error(err);
       Swal.fire({
         icon: "error",
-        title: "Error",
-        text: "Failed to delete expense. Try again.",
+        title: "Unexpected error",
+        text: "Something went wrong.",
       });
-    } else {
-      fetchExpenses();
-      Swal.fire({
-        icon: "info",
-        title: "Expense deleted",
-        text: `${desc}${amt ? ` — ₦${Number(amt).toLocaleString()}` : ""}`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
+    } finally {
+      setDeletingId(null);
     }
-  } catch (err) {
-    console.error(err);
-    Swal.fire({
-      icon: "error",
-      title: "Unexpected error",
-      text: "Something went wrong.",
-    });
-  } finally {
-    setDeletingId(null);
   }
-}
-
 
   // --- EDIT: populate form with an expense
   function handleEditExpense(exp: Expense) {
@@ -314,9 +368,14 @@ async function handleDeleteExpense(id: string, desc: string, amt?: number) {
     setDescription(exp.description);
     setAmount(exp.amount);
     setCategory(exp.category);
-    // scroll to top of form if needed (keeps user focus)
-    const top = document.querySelector("form");
-    if (top) top.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // focus & select description input for quick typing
+    setTimeout(() => {
+      try {
+        descriptionRef.current?.focus();
+        descriptionRef.current?.select();
+      } catch {}
+    }, 50);
   }
 
   // --- CANCEL EDIT
@@ -346,7 +405,10 @@ async function handleDeleteExpense(id: string, desc: string, amt?: number) {
           console.error("Error clearing expenses:", error);
           await Swal.fire({ icon: "error", title: "Error", text: error.message || "Failed to clear expenses" });
         } else {
-          fetchExpenses();
+          const curScroll = typeof window !== "undefined" ? window.scrollY : 0;
+          await fetchExpenses();
+          if (typeof window !== "undefined") window.scrollTo({ top: curScroll, behavior: "auto" });
+
           await Swal.fire({ icon: "success", title: "Cleared", text: "All expenses removed." });
         }
       } catch (err) {
@@ -661,6 +723,7 @@ async function handleDeleteExpense(id: string, desc: string, amt?: number) {
           <div className="bg-white p-4 rounded-xl shadow flex flex-col gap-4">
             <form onSubmit={handleAddExpense} className="flex flex-col gap-3">
               <input
+                ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 type="text"
@@ -744,7 +807,13 @@ async function handleDeleteExpense(id: string, desc: string, amt?: number) {
               ) : (
                 <ul className="space-y-3 max-h-72 overflow-auto">
                   {expenses.map((exp) => (
-                    <li key={exp.id} className="flex justify-between items-start bg-gray-50 p-3 rounded-lg gap-2">
+                    <li
+                      key={exp.id}
+                      data-exp-id={exp.id}
+                      className={`flex justify-between items-start bg-gray-50 p-3 rounded-lg gap-2 ${
+                        exp.id === justSavedId ? "ring-2 ring-green-300 bg-green-50" : ""
+                      }`}
+                    >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-800 break-words">{exp.description}</p>
                         <span className="text-xs text-gray-500">{exp.category}</span>
