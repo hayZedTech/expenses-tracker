@@ -183,7 +183,7 @@ export default function Admin() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-100 to-gray-300">
         <form onSubmit={handleAdminLogin} className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-sm">
           <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Admin Login</h2>
           <input
@@ -215,7 +215,7 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 p-6">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-200 p-6">
       <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>

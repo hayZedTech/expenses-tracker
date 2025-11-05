@@ -815,11 +815,11 @@ export default function Dashboard(): JSX.Element {
                       }`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-800 break-words">{exp.description}</p>
+                        <p className="font-medium text-gray-800 wrap-break-words">{exp.description}</p>
                         <span className="text-xs text-gray-500">{exp.category}</span>
                         <p className="text-xs text-gray-500 mt-1">{new Date(exp.created_at).toLocaleString()}</p>
                       </div>
-                      <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                      <div className="shrink-0 flex flex-col items-end gap-1">
                         <p className="font-semibold text-green-700">₦{exp.amount.toLocaleString()}</p>
                         <div className="flex gap-2">
                           <button

@@ -16,13 +16,13 @@
     "react-router-dom": "^7.9.5",
     "recharts": "^3.3.0",
     "sweetalert2": "^11.26.3",
-    "zustand": "^5.0.8"
+    "zustand": "^4.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@tailwindcss/cli": "^4.1.16",
     "@tailwindcss/postcss": "^4.1.16",
-    "@types/node": "^24.6.0",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
