@@ -17,7 +17,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [message, setMessage] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // <-- password eye
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
@@ -48,8 +48,18 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        // ✅ Check if email is confirmed
+        if (!data.user?.email_confirmed_at) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Email not confirmed',
+            text: 'Please check your email and confirm before logging in.',
+          });
+          return;
+        }
 
         setUser({ email } as User);
         await Swal.fire({
@@ -61,7 +71,7 @@ export default function Auth() {
         });
         navigate('/dashboard');
       } else {
-        const { error, data: signUpData } = await supabase.auth.signUp({ email, password });
+        const { data: signUpData, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
         if (signUpData?.user) {
@@ -71,15 +81,19 @@ export default function Auth() {
           if (upsertError) throw upsertError;
         }
 
-        setUser({ email, fullname } as User);
         await Swal.fire({
           icon: 'success',
           title: 'Account created',
-          text: 'Check your email to confirm (if required).',
+          text: 'Check your email to confirm before logging in.',
           timer: 1800,
           showConfirmButton: false,
         });
-        navigate('/dashboard');
+
+        // Don't auto-login, just show message
+        setEmail('');
+        setPassword('');
+        setFullname('');
+        setIsLogin(true);
       }
     } catch (err: unknown) {
       const raw =
@@ -117,7 +131,7 @@ export default function Auth() {
 
     if (!userEmail) return;
 
-    const redirectTo = `${window.location.origin}/reset-password`; // dedicated page
+    const redirectTo = `${window.location.origin}/reset-password`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo });
     if (error) {
@@ -159,7 +173,6 @@ export default function Auth() {
             className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
-          {/* Password field with eye */}
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}

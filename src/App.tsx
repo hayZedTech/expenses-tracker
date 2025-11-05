@@ -5,6 +5,7 @@ import { useAuthStore } from './contexts/useAuthStore';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import ResetPassword from './pages/ResetPassword';
+import Admin from './pages/Admin'; // ✅ Add this import
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user } = useAuthStore();
@@ -20,7 +21,11 @@ function ProtectedRoute({ children }: { children: ReactElement }) {
 export default function App() {
   return (
     <Routes>
+      {/* Public routes */}
       <Route path="/" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* Protected routes */}
       <Route
         path="/dashboard"
         element={
@@ -29,7 +34,9 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* ✅ Admin route (not protected by user auth) */}
+      <Route path="/admin" element={<Admin />} />
     </Routes>
   );
 }
