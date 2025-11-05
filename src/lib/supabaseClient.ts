@@ -8,19 +8,21 @@ const supabaseAnonKey =
 // ✅ Normal client for public use
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// ✅ Safely extend global `Window` once
+// ✅ Safely extend global `Window` once with proper typing
 declare global {
   interface Window {
-    createAdminClient?: () => SupabaseClient | null
+    createAdminClient?: () => SupabaseClient<any, 'public', 'public', any, any> | null
   }
 }
 
 // ✅ Only define it if it doesn't already exist
 if (!window.createAdminClient) {
-  window.createAdminClient = (): SupabaseClient | null => {
+  window.createAdminClient = (): SupabaseClient<any, 'public', 'public', any, any> | null => {
     const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
     if (!serviceKey) {
-      console.warn('⚠️ Missing VITE_SUPABASE_SERVICE_ROLE_KEY — admin actions will fail.')
+      console.warn(
+        '⚠️ Missing VITE_SUPABASE_SERVICE_ROLE_KEY — admin actions will fail.'
+      )
       return null
     }
     return createClient(supabaseUrl, serviceKey)

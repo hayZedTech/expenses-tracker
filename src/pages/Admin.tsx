@@ -1,22 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Swal from "sweetalert2";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// ✅ Make sure you set this function in a safe place (like index.html) with your service role key
-declare global {
-  interface Window {
-    createAdminClient?: () => SupabaseClient | null;
-  }
-}
 
 interface UserProfile {
   id: string;
   email: string;
   fullname?: string;
   created_at?: string;
-  email_confirmed_at?: string; // <-- add this
+  email_confirmed_at?: string;
 }
 
 export default function Admin() {
@@ -29,6 +22,55 @@ export default function Admin() {
 
   const ADMIN_EMAILS = ["ololadeazeez.m@gmail.com"];
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const adminClient: SupabaseClient<any, "public", "public", any, any> | null =
+        window.createAdminClient?.() ?? null;
+      if (!adminClient) throw new Error("Admin client not available.");
+
+      const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 100,
+      });
+      if (authError) throw authError;
+
+      const authUsers = authData?.users ?? [];
+
+      const { data: profiles, error: tableError } = await supabase
+        .from("expenses_profiles")
+        .select("*");
+      if (tableError) throw tableError;
+
+      // Match by id OR email, and ensure the auth user has a confirmed email
+      let confirmedUsers = (profiles || []).filter((p: any) =>
+        authUsers.some((a: any) => {
+          const sameId = a.id === p.id;
+          const sameEmail =
+            typeof a.email === "string" &&
+            typeof p.email === "string" &&
+            a.email.toLowerCase() === p.email.toLowerCase();
+          const confirmed = Boolean(a.email_confirmed_at || a.confirmed_at);
+          return confirmed && (sameId || sameEmail);
+        })
+      );
+
+      // ✅ Sort by created_at descending (newest first)
+      confirmedUsers.sort((a: any, b: any) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      setUsers(confirmedUsers || []);
+    } catch (err: any) {
+      Swal.fire("Error", err.message || "Failed to load users", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const checkAdminSession = async () => {
       const {
@@ -36,6 +78,11 @@ export default function Admin() {
       } = await supabase.auth.getSession();
 
       if (session?.user?.email && ADMIN_EMAILS.includes(session.user.email)) {
+        if (!session.user.email_confirmed_at) {
+          await supabase.auth.signOut();
+          setIsLoggedIn(false);
+          return;
+        }
         setAdminEmail(session.user.email);
         setIsLoggedIn(true);
         fetchUsers();
@@ -46,20 +93,15 @@ export default function Admin() {
 
     checkAdminSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user?.email && ADMIN_EMAILS.includes(session.user.email)) {
-          setAdminEmail(session.user.email);
-          setIsLoggedIn(true);
-          fetchUsers();
-        } else {
-          setIsLoggedIn(false);
-        }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user?.email || !ADMIN_EMAILS.includes(session.user.email)) {
+        setIsLoggedIn(false);
+        setUsers([]);
       }
-    );
+    });
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [fetchUsers]);
 
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +113,6 @@ export default function Admin() {
       });
       if (error) throw error;
 
-      // ✅ Prevent login if admin email not confirmed
       if (!data.user?.email_confirmed_at) {
         await Swal.fire(
           "Email not confirmed",
@@ -83,11 +124,7 @@ export default function Admin() {
       }
 
       if (!ADMIN_EMAILS.includes(adminEmail)) {
-        await Swal.fire(
-          "Access Denied",
-          "You are not authorized as admin.",
-          "error"
-        );
+        await Swal.fire("Access Denied", "You are not authorized as admin.", "error");
         await supabase.auth.signOut();
         return;
       }
@@ -96,29 +133,6 @@ export default function Admin() {
       fetchUsers();
     } catch (err: any) {
       Swal.fire("Login Failed", err.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // 📦 Fetch users from table (only confirmed)
-  async function fetchUsers() {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("expenses_profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-
-      // ✅ Filter only confirmed emails
-      const confirmedUsers = data?.filter(
-        (u: any) => u.email_confirmed_at // you may need to join auth table or store this column
-      );
-
-      setUsers(confirmedUsers || []);
-    } catch (err: any) {
-      Swal.fire("Error", err.message || "Failed to load users", "error");
     } finally {
       setLoading(false);
     }
@@ -137,16 +151,11 @@ export default function Admin() {
     try {
       setLoading(true);
 
-      const adminClient = window.createAdminClient?.();
-      if (!adminClient) {
-        throw new Error(
-          "Admin client not available. Cannot delete user from Auth."
-        );
-      }
+      const adminClient: SupabaseClient<any, "public", "public", any, any> | null =
+        window.createAdminClient?.() ?? null;
+      if (!adminClient) throw new Error("Admin client not available.");
 
-      const { error: authError } = await adminClient.auth.admin.deleteUser(
-        user.id
-      );
+      const { error: authError } = await adminClient.auth.admin.deleteUser(user.id);
       if (authError) throw authError;
 
       const { error: tableError } = await supabase
@@ -155,11 +164,7 @@ export default function Admin() {
         .eq("id", user.id);
       if (tableError) throw tableError;
 
-      await Swal.fire(
-        "Deleted!",
-        `${user.email} removed from Auth and table.`,
-        "success"
-      );
+      Swal.fire("Deleted!", `${user.email} removed from Auth and table.`, "success");
       fetchUsers();
     } catch (err: any) {
       Swal.fire("Error", err.message || "Could not delete user", "error");
@@ -173,18 +178,14 @@ export default function Admin() {
     setIsLoggedIn(false);
     setAdminEmail("");
     setAdminPassword("");
+    setUsers([]);
   }
 
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300">
-        <form
-          onSubmit={handleAdminLogin}
-          className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-sm"
-        >
-          <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-            Admin Login
-          </h2>
+        <form onSubmit={handleAdminLogin} className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-sm">
+          <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Admin Login</h2>
           <input
             type="email"
             placeholder="Admin Email"
@@ -245,38 +246,22 @@ export default function Admin() {
             <table className="min-w-full border border-gray-200 divide-y divide-gray-200">
               <thead className="bg-blue-600 text-white">
                 <tr>
-                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">
-                    Full Name
-                  </th>
-                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">
-                    Email
-                  </th>
-                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">
-                    Created At
-                  </th>
-                  <th className="py-3 px-2 sm:px-4 text-center text-sm sm:text-base">
-                    Action
-                  </th>
+                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">Full Name</th>
+                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">Email</th>
+                  <th className="py-3 px-2 sm:px-4 text-left text-sm sm:text-base">Created At</th>
+                  <th className="py-3 px-2 sm:px-4 text-center text-sm sm:text-base">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {users.map((user, index) => (
                   <tr
                     key={user.id}
-                    className={`${
-                      index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                    } hover:bg-blue-50 transition`}
+                    className={`${index % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50 transition`}
                   >
+                    <td className="py-2 px-2 sm:px-4 text-sm sm:text-base">{user.fullname || "-"}</td>
+                    <td className="py-2 px-2 sm:px-4 text-sm sm:text-base">{user.email}</td>
                     <td className="py-2 px-2 sm:px-4 text-sm sm:text-base">
-                      {user.fullname || "-"}
-                    </td>
-                    <td className="py-2 px-2 sm:px-4 text-sm sm:text-base">
-                      {user.email}
-                    </td>
-                    <td className="py-2 px-2 sm:px-4 text-sm sm:text-base">
-                      {user.created_at
-                        ? new Date(user.created_at).toLocaleString()
-                        : "-"}
+                      {user.created_at ? new Date(user.created_at).toLocaleString() : "-"}
                     </td>
                     <td className="py-2 px-2 sm:px-4 text-center text-sm sm:text-base">
                       <button
