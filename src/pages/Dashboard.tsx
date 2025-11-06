@@ -1,5 +1,4 @@
-// src/pages/Dashboard.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";  
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -17,6 +16,7 @@ import {
   Legend,
 } from "recharts";
 import type { JSX } from "react/jsx-runtime";
+import Header from "./Header"; // extracted header (same folder) - adjust path if needed
 
 type Expense = {
   id: string;
@@ -39,6 +39,11 @@ export default function Dashboard(): JSX.Element {
   const [filter, setFilter] = useState<Filter>("all");
   const [budget, setBudget] = useState<number | "">("");
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // New states: date range and search
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   // per-button loading states so only the selected button spins
   const [formLoading, setFormLoading] = useState(false); // add/save expense
@@ -97,18 +102,31 @@ export default function Dashboard(): JSX.Element {
         .eq("email", email)
         .order("created_at", { ascending: false });
 
-      const now = new Date();
-      if (filter === "today") {
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
-        query = query.gte("created_at", start).lte("created_at", end);
-      } else if (filter === "week") {
-        const start = new Date();
-        start.setDate(start.getDate() - 7);
-        query = query.gte("created_at", start.toISOString());
-      } else if (filter === "month") {
-        const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        query = query.gte("created_at", start);
+      // If user provided an explicit date range, that takes priority
+      if (startDate || endDate) {
+        if (startDate) {
+          const startIso = new Date(startDate + "T00:00:00").toISOString();
+          query = query.gte("created_at", startIso);
+        }
+        if (endDate) {
+          const endIso = new Date(endDate + "T23:59:59.999").toISOString();
+          query = query.lte("created_at", endIso);
+        }
+      } else {
+        // existing preset filter behaviour
+        const now = new Date();
+        if (filter === "today") {
+          const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+          const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+          query = query.gte("created_at", start).lte("created_at", end);
+        } else if (filter === "week") {
+          const start = new Date();
+          start.setDate(start.getDate() - 7);
+          query = query.gte("created_at", start.toISOString());
+        } else if (filter === "month") {
+          const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+          query = query.gte("created_at", start);
+        }
       }
 
       const res = await query;
@@ -118,7 +136,26 @@ export default function Dashboard(): JSX.Element {
       if (error) {
         console.error("Error fetching expenses:", error);
         setExpenses([]);
-      } else setExpenses(data ?? []);
+      } else {
+        // Client-side comprehensive search: description, category, amount, or date string
+        let results: Expense[] = data ?? [];
+        if (searchTerm && searchTerm.trim() !== "") {
+          const term = searchTerm.trim().toLowerCase();
+          results = results.filter((e) => {
+            const desc = e.description?.toLowerCase() ?? "";
+            const cat = e.category?.toLowerCase() ?? "";
+            const amt = String(e.amount);
+            const dateStr = new Date(e.created_at).toLocaleString().toLowerCase();
+            return (
+              desc.includes(term) ||
+              cat.includes(term) ||
+              amt.includes(term) ||
+              dateStr.includes(term)
+            );
+          });
+        }
+        setExpenses(results);
+      }
     } catch (err) {
       console.error("Error fetching expenses:", err);
       setExpenses([]);
@@ -130,7 +167,7 @@ export default function Dashboard(): JSX.Element {
   useEffect(() => {
     fetchExpenses();
     fetchBudget();
-  }, [email, filter]);
+  }, [email, filter, startDate, endDate, searchTerm]);
 
   // This function drives the button spinner and performs add/update actions.
   async function handleAddOrSave() {
@@ -467,13 +504,17 @@ export default function Dashboard(): JSX.Element {
     const headers = ["Description", "Amount", "Category", "Date"];
     // keep amounts numeric in CSV so columns remain correct
     const rows = expenses.map((e) => [
-      `"${e.description.replace(/"/g, '""')}"`,
+      `"${e.description.replace(/"/g, '""') }`,
       e.amount,
       e.category,
       new Date(e.created_at).toLocaleString(),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent =
+  "data:text/csv;charset=utf-8," +
+  [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+
+  const encodedUri = encodeURI(csvContent);
+
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "expenses.csv");
@@ -521,27 +562,22 @@ export default function Dashboard(): JSX.Element {
   const remainingBudget = budget !== "" && budget !== null ? Number(budget) - totalAmount : null;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-white transition-colors">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+   <div className="min-h-screen bg-linear-to-br from-gray-50 to-white transition-colors pt-[120px] sm:pt-[100px] md:pt-20">
+
+
+      <div className="max-w-6xl mx-auto px-4 py-4 pt-[110px] md:pt-20">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-extrabold text-gray-900">💰 Expense Tracker</h1>
-            <p className="text-sm text-gray-600 mt-1">Track spending, set budgets, and visualize your money.</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(["today", "week", "month", "all"] as Filter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-2 py-1 rounded-lg text-sm cursor-pointer ${filter === f ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"}`}
-              >
-                {f === "today" ? "Today" : f === "week" ? "This Week" : f === "month" ? "This Month" : "All"}
-              </button>
-            ))}
-            <button onClick={handleLogout} className="ml-1 bg-red-600 text-white px-2 py-2 rounded-lg text-sm cursor-pointer">Logout</button>
-          </div>
-        </div>
+        <Header
+          filter={filter}
+          setFilter={setFilter}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          handleLogout={handleLogout}
+        />
 
         {/* Top stats cards */}
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
@@ -797,9 +833,9 @@ export default function Dashboard(): JSX.Element {
               </div>
             </form>
 
-            {/* Recent expenses */}
+            {/* All expenses */}
             <div>
-              <h4 className="font-semibold text-gray-700 mb-3">Recent expenses</h4>
+              <h4 className="font-semibold text-gray-700 mb-3">All expenses</h4>
               {loading ? (
                 <p className="text-sm text-gray-500">Loading...</p>
               ) : expenses.length === 0 ? (
