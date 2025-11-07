@@ -20,7 +20,8 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const ADMIN_EMAILS = ["ololadeazeez.m@gmail.com"];
+  const ADMIN_EMAILS = [import.meta.env.VITE_ADMIN_EMAIL];
+
 
   const fetchUsers = useCallback(async () => {
     try {
