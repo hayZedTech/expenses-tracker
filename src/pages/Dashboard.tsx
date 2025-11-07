@@ -55,6 +55,9 @@ export default function Dashboard(): JSX.Element {
   // id that was just saved (used to briefly highlight the saved item)
   const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
+  // --- NEW: show more state for category list
+  const [showAllCategories, setShowAllCategories] = useState(false);
+
   const navigate = useNavigate();
 
   // ref for description input so we can focus/select it when editing
@@ -778,20 +781,24 @@ export default function Dashboard(): JSX.Element {
                           ))}
                         </Pie>
                         <Tooltip formatter={(value: number) => `₦${Number(value).toLocaleString()}`} />
+                        
                         <Legend verticalAlign="bottom" height={36} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 )}
                 {pieData.length > 0 && (
-                  <div className="w-full mt-3">
-                    <ul className="space-y-2">
-                      {pieData.slice(0, 5).map((p, i) => {
+                  <div className="w-full mt-3 relative">
+                    {/* show top 5 by default, dropdown floats remainder (6..n) */}
+                    <ul className="space-y-2 mt-8">
+                      {pieData.slice(0, 5).map((p) => {
+                        // color index = original index in pieData
+                        const idx = pieData.findIndex((x) => x.name === p.name);
                         const percent = totalByCategories ? ((p.value / totalByCategories) * 100).toFixed(0) : "0";
                         return (
                           <li key={p.name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="w-3 h-3 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
+                            <div className="flex items-center gap-3 ">
+                              <span className="w-3 h-3 rounded-sm" style={{ background: COLORS[idx % COLORS.length] }} />
                               <span className="text-sm text-gray-700">{p.name}</span>
                             </div>
                             <div className="text-sm text-gray-500">{percent}% — ₦{p.value.toLocaleString()}</div>
@@ -799,6 +806,39 @@ export default function Dashboard(): JSX.Element {
                         );
                       })}
                     </ul>
+
+                    {/* Toggle & floating dropdown */}
+                    {pieData.length > 5 && (
+                      <div className="mt-3 text-right">
+                        <button
+                          onClick={() => setShowAllCategories(!showAllCategories)}
+                          className="text-blue-600 text-sm hover:underline relative"
+                        >
+                          {showAllCategories ? "Show less ▲" : "Show more ▼"}
+                        </button>
+
+                        {showAllCategories && (
+                          <div className="absolute right-0 mt-2 w-64 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-10 p-3">
+                            <ul className="space-y-2">
+                              {pieData.slice(5).map((p) => {
+                                // i is index within the remainder; original index = i + 5
+                                const originalIdx = pieData.findIndex((x) => x.name === p.name);
+                                const percent = totalByCategories ? ((p.value / totalByCategories) * 100).toFixed(0) : "0";
+                                return (
+                                  <li key={p.name} className="flex items-center justify-between hover:bg-gray-50 p-1 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      <span className="w-3 h-3 rounded-sm" style={{ background: COLORS[originalIdx % COLORS.length] }} />
+                                      <span className="text-sm text-gray-700">{p.name}</span>
+                                    </div>
+                                    <div className="text-sm text-gray-500">{percent}% — ₦{p.value.toLocaleString()}</div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
