@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";  
+// src/pages/Dashboard.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom"; // <-- ADDED
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -722,33 +724,43 @@ export default function Dashboard(): JSX.Element {
           </form>
           <div className="flex items-center gap-3">
             <button onClick={exportCSV} className="bg-indigo-600 text-white px-3 py-2 rounded-lg cursor-pointer">Export CSV</button>
-            <button
-              onClick={handleClearExpenses}
-              className="bg-red-500 text-white px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2"
-              disabled={clearLoading}
-            >
-              {clearLoading ? (
-                <>
-                  <svg
-                    className="animate-spin h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                    ></path>
-                  </svg>
-                  <span>Clearing...</span>
-                </>
-              ) : (
-                "Clear All"
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleClearExpenses}
+                className="bg-red-500 text-white px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2"
+                disabled={clearLoading}
+              >
+                {clearLoading ? (
+                  <>
+                    <svg
+                      className="animate-spin h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                      ></path>
+                    </svg>
+                    <span>Clearing...</span>
+                  </>
+                ) : (
+                  "Clear All"
+                )}
+              </button>
+
+              {/* NEW: To-Do List link beside Clear All */}
+              <Link
+                to="/todos"
+                className="ml-2 inline-block px-3 py-1 rounded-lg border-4 border-purple-900 bg-white-900 text-purple-900  hover:bg-indigo-100 transition"
+              >
+                To-Do List
+              </Link>
+            </div>
           </div>
         </div>
 

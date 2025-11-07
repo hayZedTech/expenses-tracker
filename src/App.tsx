@@ -5,7 +5,8 @@ import { useAuthStore } from './contexts/useAuthStore';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import ResetPassword from './pages/ResetPassword';
-import Admin from './pages/Admin'; // ✅ Add this import
+import Admin from './pages/Admin';
+import ToDoList from './pages/TodoList'; // ✅ Added this import
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user } = useAuthStore();
@@ -31,6 +32,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ To-Do List route (protected like dashboard) */}
+      <Route
+        path="/todos"
+        element={
+          <ProtectedRoute>
+            <ToDoList />
           </ProtectedRoute>
         }
       />
