@@ -222,37 +222,38 @@ export default function TodoList(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-white pt-[120px] md:pt-20">
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">To-Do List</h1>
-            <p className="text-sm text-gray-500">Personal tasks — saved to your account</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/dashboard"
-              className="px-3 py-1 rounded-lg border-4 border-purple-900 bg-white-900 text-purple-900 hover:bg-gray-50"
-            >
-              Back to Dashboard
-            </Link>
-            <button
-              onClick={() => (userEmail ? clearAll() : navigate("/"))}
-              className="px-3 py-2 rounded-lg bg-red-500 text-white"
-              disabled={loading}
-            >
-              Clear All
-            </button>
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-white pt-[50px] md:pt-10">
+      <div className="max-w-3xl mx-auto px-4">
+       {/* Header */}
+<div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+  <div>
+    <h1 className="text-2xl font-bold text-gray-800">To-Do List</h1>
+    <p className="text-sm text-gray-500">Personal tasks — saved to your account</p>
+  </div>
+  <div className="flex items-center gap-3 flex-wrap">
+    <Link
+      to="/dashboard"
+      className="px-3 py-1 rounded-lg border-4 border-purple-900 bg-white-900 text-purple-900 hover:bg-gray-50"
+    >
+      Back to Dashboard
+    </Link>
+    <button
+      onClick={() => (userEmail ? clearAll() : navigate("/"))}
+      className="px-3 py-2 rounded-lg bg-red-500 text-white"
+      disabled={loading}
+    >
+      Clear All
+    </button>
 
-             <button
-                onClick={handleLogout}
-                className="ml-1 bg-red-600 text-white px-2 py-2 rounded-lg text-sm cursor-pointer absolute right-4 top-4 md:static md:ml-1"
-              >
-                Logout
-              </button>
-          </div>
-        </div>
+    <button
+      onClick={handleLogout}
+      className="bg-red-600 text-white px-2 py-2 rounded-lg text-sm cursor-pointer"
+    >
+      Logout
+    </button>
+  </div>
+</div>
+
 
         {/* Add task */}
         <div className="bg-white p-4 rounded-xl shadow">
