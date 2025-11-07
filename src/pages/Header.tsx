@@ -50,7 +50,7 @@ export default function Header({
               </select>
 
               <div className="flex items-center gap-2">
-                <label className="text-sm">From</label>
+                <label className="text-sm font-semibold">From</label>
                 <input
                   type="date"
                   value={startDate ?? ""}
@@ -60,7 +60,7 @@ export default function Header({
                   className="px-3 py-2 rounded-lg border text-sm"
                   aria-label="Start date"
                 />
-                <label className="text-sm">To</label>
+                <label className="text-sm font-semibold">To</label>
                 <input
                   type="date"
                   value={endDate ?? ""}
@@ -113,7 +113,7 @@ export default function Header({
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-sm">From</label>
+              <label className="text-sm font-semibold">From</label>
               <input
                 type="date"
                 value={startDate ?? ""}
@@ -123,7 +123,7 @@ export default function Header({
                 className="px-3 py-2 rounded-lg border text-sm flex-1"
                 aria-label="Start date"
               />
-              <label className="text-sm">To</label>
+              <label className="text-sm font-semibold">To</label>
               <input
                 type="date"
                 value={endDate ?? ""}

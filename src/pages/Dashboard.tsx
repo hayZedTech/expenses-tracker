@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import type { JSX } from "react/jsx-runtime";
 import Header from "./Header"; // extracted header (same folder) - adjust path if needed
+import Select from "react-select";
 
 type Expense = {
   id: string;
@@ -561,6 +562,75 @@ export default function Dashboard(): JSX.Element {
 
   const remainingBudget = budget !== "" && budget !== null ? Number(budget) - totalAmount : null;
 
+  // --- react-select grouped options (keeps same categories as before)
+  const groupedOptions = [
+    {
+      label: "Essentials",
+      options: [
+        { value: "Food", label: "Food" },
+        { value: "Groceries", label: "Groceries" },
+        { value: "Transport", label: "Transport" },
+        { value: "Fuel", label: "Fuel" },
+        { value: "Rent", label: "Rent" },
+        { value: "Utilities", label: "Utilities" },
+        { value: "Internet & Phone", label: "Internet & Phone" },
+        { value: "Water Bill", label: "Water Bill" },
+        { value: "Electricity Bill", label: "Electricity Bill" },
+      ],
+    },
+    {
+      label: "Personal",
+      options: [
+        { value: "Shopping", label: "Shopping" },
+        { value: "Health", label: "Health" },
+        { value: "Medicine", label: "Medicine" },
+        { value: "Gym & Fitness", label: "Gym & Fitness" },
+        { value: "Entertainment", label: "Entertainment" },
+        { value: "Personal Care", label: "Personal Care" },
+        { value: "Salon & Spa", label: "Salon & Spa" },
+        { value: "Clothing", label: "Clothing" },
+        { value: "Education", label: "Education" },
+        { value: "Courses & Learning", label: "Courses & Learning" },
+      ],
+    },
+    {
+      label: "Financial",
+      options: [
+        { value: "Loans & Debts", label: "Loans & Debts" },
+        { value: "Insurance", label: "Insurance" },
+        { value: "Gifts & Donations", label: "Gifts & Donations" },
+        { value: "Investment", label: "Investment" },
+        { value: "Savings", label: "Savings" },
+        { value: "Bank Charges", label: "Bank Charges" },
+        { value: "Tax", label: "Tax" },
+      ],
+    },
+    {
+      label: "Lifestyle & Miscellaneous",
+      options: [
+        { value: "Subscriptions", label: "Subscriptions" },
+        { value: "Streaming Services", label: "Streaming Services" },
+        { value: "Pets", label: "Pets" },
+        { value: "Family", label: "Family" },
+        { value: "Repairs & Maintenance", label: "Repairs & Maintenance" },
+        { value: "Home Supplies", label: "Home Supplies" },
+        { value: "Travel", label: "Travel" },
+        { value: "Emergency", label: "Emergency" },
+        { value: "Other", label: "Other" },
+      ],
+    },
+  ];
+
+  const findOptionByValue = (val: string | null) => {
+    if (!val) return null;
+    for (const grp of groupedOptions) {
+      const match = grp.options.find((o) => o.value === val);
+      if (match) return match;
+    }
+    // fallback to a simple option if value not found (keeps UI consistent)
+    return { value: val, label: val };
+  };
+
   return (
    <div className="min-h-screen bg-linear-to-br from-gray-50 to-white transition-colors pt-[120px] sm:pt-[100px] md:pt-20">
 
@@ -776,14 +846,22 @@ export default function Dashboard(): JSX.Element {
                   className="px-3 py-2 rounded-lg border w-32"
                   required
                 />
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 rounded-lg border cursor-pointer">
-                  <option>Food</option>
-                  <option>Transport</option>
-                  <option>Shopping</option>
-                  <option>Health</option>
-                  <option>Entertainment</option>
-                  <option>Other</option>
-                </select>
+                <div className="flex-1">
+                  <Select
+                    options={groupedOptions as any}
+                    value={findOptionByValue(category) as any}
+                    onChange={(opt: any) => setCategory(opt?.value ?? "Other")}
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    styles={{
+                      container: (provided) => ({ ...provided }),
+                    }}
+                    // keep the dropdown compact so it fits your form layout
+                    isSearchable
+                    placeholder="Select category..."
+                    menuPlacement="auto"
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
