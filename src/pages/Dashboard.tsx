@@ -790,6 +790,7 @@ export default function Dashboard(): JSX.Element {
                 {pieData.length > 0 && (
                   <div className="w-full mt-3 relative">
                     {/* show top 5 by default, dropdown floats remainder (6..n) */}
+                    <br />
                     <ul className="space-y-2 mt-8">
                       {pieData.slice(0, 5).map((p) => {
                         // color index = original index in pieData
