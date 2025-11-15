@@ -23,9 +23,14 @@ export default function Admin() {
   const ADMIN_EMAILS = [import.meta.env.VITE_ADMIN_EMAIL];
 
   // Detect base URL for Supabase Functions (local or deployed)
-  const FUNCTIONS_BASE_URL =
-    import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
-    (window.location.hostname === "localhost" ? "http://localhost:8000" : "");
+ // src/lib/functions.ts
+   const FUNCTIONS_BASE_URL =
+  import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || 
+  (window.location.hostname === "localhost"
+    ? "http://localhost:8000" // your local dev server for Edge Functions
+    : "https://expenses-tracker-swart-eight.vercel.app"); 
+
+
 
   const fetchUsers = useCallback(async () => {
     try {
