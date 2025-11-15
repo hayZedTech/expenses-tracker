@@ -1,8 +1,8 @@
+// src/pages/Admin.tsx
 import { useEffect, useState, useCallback } from "react";
 import Swal from "sweetalert2";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface UserProfile {
   id: string;
@@ -22,49 +22,26 @@ export default function Admin() {
 
   const ADMIN_EMAILS = [import.meta.env.VITE_ADMIN_EMAIL];
 
+  // Detect base URL for Supabase Functions (local or deployed)
+  const FUNCTIONS_BASE_URL =
+    import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
+    (window.location.hostname === "localhost" ? "http://localhost:8000" : "");
 
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
+      const res = await fetch(`${FUNCTIONS_BASE_URL}/list-users`);
+      const data = await res.json();
 
-      const adminClient: SupabaseClient<any, "public", "public", any, any> | null =
-        window.createAdminClient?.() ?? null;
-      if (!adminClient) throw new Error("Admin client not available.");
+      if (!data.success) throw new Error(data.error || "Failed to fetch users");
 
-      const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({
-        page: 1,
-        perPage: 100,
-      });
-      if (authError) throw authError;
-
-      const authUsers = authData?.users ?? [];
-
-      const { data: profiles, error: tableError } = await supabase
-        .from("expenses_profiles")
-        .select("*");
-      if (tableError) throw tableError;
-
-      // Match by id OR email, and ensure the auth user has a confirmed email
-      let confirmedUsers = (profiles || []).filter((p: any) =>
-        authUsers.some((a: any) => {
-          const sameId = a.id === p.id;
-          const sameEmail =
-            typeof a.email === "string" &&
-            typeof p.email === "string" &&
-            a.email.toLowerCase() === p.email.toLowerCase();
-          const confirmed = Boolean(a.email_confirmed_at || a.confirmed_at);
-          return confirmed && (sameId || sameEmail);
-        })
-      );
-
-      // ✅ Sort by created_at descending (newest first)
-      confirmedUsers.sort((a: any, b: any) => {
+      const sortedUsers = (data.users || []).sort((a: any, b: any) => {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return dateB - dateA;
       });
 
-      setUsers(confirmedUsers || []);
+      setUsers(sortedUsers);
     } catch (err: any) {
       Swal.fire("Error", err.message || "Failed to load users", "error");
     } finally {
@@ -151,19 +128,14 @@ export default function Admin() {
 
     try {
       setLoading(true);
+      const res = await fetch(`${FUNCTIONS_BASE_URL}/delete-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id }),
+      });
+      const data = await res.json();
 
-      const adminClient: SupabaseClient<any, "public", "public", any, any> | null =
-        window.createAdminClient?.() ?? null;
-      if (!adminClient) throw new Error("Admin client not available.");
-
-      const { error: authError } = await adminClient.auth.admin.deleteUser(user.id);
-      if (authError) throw authError;
-
-      const { error: tableError } = await supabase
-        .from("expenses_profiles")
-        .delete()
-        .eq("id", user.id);
-      if (tableError) throw tableError;
+      if (!data.success) throw new Error(data.error || "Failed to delete user");
 
       Swal.fire("Deleted!", `${user.email} removed from Auth and table.`, "success");
       fetchUsers();

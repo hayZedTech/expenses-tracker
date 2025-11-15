@@ -1,0 +1,47 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://deno.land/x/dotenv/load.ts": "https://deno.land/x/dotenv@v3.2.2/load.ts"
+  },
+  "remote": {
+    "https://deno.land/std@0.203.0/async/delay.ts": "a6142eb44cdd856b645086af2b811b1fcce08ec06bb7d50969e6a872ee9b8659",
+    "https://deno.land/std@0.203.0/http/server.ts": "1b2403b3c544c0624ad23e8ca4e05877e65380d9e0d75d04957432d65c3d5f41",
+    "https://deno.land/x/dotenv@v3.2.2/load.ts": "cbd76a0aee01aad8d09222afaa1dd04b84d9d3e44637503b01bf77a91df9e041",
+    "https://deno.land/x/dotenv@v3.2.2/mod.ts": "077b48773de9205266a0b44c3c3a3c3083449ed64bb0b6cc461b95720678d38e",
+    "https://deno.land/x/dotenv@v3.2.2/util.ts": "693730877b13f8ead2b79b2aa31e2a0652862f7dc0c5f6d2f313f4d39c7b7670"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/js@^9.36.0",
+        "npm:@supabase/supabase-js@^2.81.1",
+        "npm:@tailwindcss/cli@^4.1.16",
+        "npm:@tailwindcss/postcss@^4.1.16",
+        "npm:@types/deno@^2.5.0",
+        "npm:@types/node@^24.10.0",
+        "npm:@types/react-dom@^19.2.2",
+        "npm:@types/react@^19.2.2",
+        "npm:@vitejs/plugin-react@^5.0.4",
+        "npm:autoprefixer@^10.4.21",
+        "npm:dotenv@^17.2.3",
+        "npm:eslint-plugin-react-hooks@^5.2.0",
+        "npm:eslint-plugin-react-refresh@~0.4.22",
+        "npm:eslint@^9.36.0",
+        "npm:globals@^16.4.0",
+        "npm:postcss@^8.5.6",
+        "npm:react-dom@^19.1.1",
+        "npm:react-icons@^5.5.0",
+        "npm:react-router-dom@^7.9.5",
+        "npm:react-select@^5.10.2",
+        "npm:react@^19.1.1",
+        "npm:recharts@^3.3.0",
+        "npm:sweetalert2@^11.26.3",
+        "npm:tailwindcss@^4.1.16",
+        "npm:typescript-eslint@^8.45.0",
+        "npm:typescript@~5.9.3",
+        "npm:vite@^7.1.7",
+        "npm:zustand@^4.4.1"
+      ]
+    }
+  }
+}

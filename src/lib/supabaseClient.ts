@@ -1,9 +1,9 @@
+// src/lib/supabaseClient.ts
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-// Supabase project details
-const supabaseUrl = 'https://idgrfypntnjlphmqqgnp.supabase.co'
-const supabaseAnonKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkZ3JmeXBudG5qbHBobXFxZ25wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5ODMwNDEsImV4cCI6MjA3MDU1OTA0MX0.BzpEJZkaw6FRLdMVbgU6LkJdtgcqZOg8U7frCKFO0zM'
+// Supabase project details from VITE_* envs (public)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Normal client for public use
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
@@ -11,6 +11,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // Extend global `Window` once with proper typing
 declare global {
   interface Window {
+    // kept for compatibility, but will NOT return a service-role client in production
     createAdminClient?: () => SupabaseClient<
       unknown,
       { PostgrestVersion: string },
@@ -21,7 +22,8 @@ declare global {
   }
 }
 
-// Define it if it doesn't already exist
+// IMPORTANT: never expose service role key in the browser.
+// createAdminClient will warn and return null. Use your server functions for admin actions.
 if (!window.createAdminClient) {
   window.createAdminClient = (): SupabaseClient<
     unknown,
@@ -33,10 +35,15 @@ if (!window.createAdminClient) {
     const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
     if (!serviceKey) {
       console.warn(
-        '⚠️ Missing VITE_SUPABASE_SERVICE_ROLE_KEY — admin actions will fail.'
+        '⚠️ No VITE_SUPABASE_SERVICE_ROLE_KEY found (good). For admin actions, call your server functions instead.'
       )
       return null
     }
-    return createClient(supabaseUrl, serviceKey)
+
+    // If the service key is present in VITE_* (NOT recommended), still refuse to create in-browser admin client:
+    console.warn(
+      '⚠️ VITE_SUPABASE_SERVICE_ROLE_KEY is present in client env. This is insecure and should be removed. Admin client will not be created in browser.'
+    )
+    return null
   }
 }
