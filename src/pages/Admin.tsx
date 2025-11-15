@@ -28,7 +28,7 @@ export default function Admin() {
   import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
   (window.location.hostname === "localhost"
     ? "http://localhost:8000" // local dev server for Supabase functions
-    : `${window.location.origin}/api`); // Vercel deployed functions
+    : `${window.location.origin}/api`); // Vercel deployed function
  
 
 
