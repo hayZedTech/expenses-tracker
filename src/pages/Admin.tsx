@@ -24,36 +24,51 @@ export default function Admin() {
 
   // Detect base URL for Supabase Functions (local or deployed)
  // src/lib/functions.ts
-   const FUNCTIONS_BASE_URL =
-  import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
-  (window.location.hostname === "localhost"
-    ? "http://localhost:8000" // local dev server for Supabase functions
-    : `${window.location.origin}/api`); // Vercel deployed function
- 
+ // use direct URL (no rely-on-env)
+const FUNCTIONS_BASE_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:8000"                 // local Deno dev server
+    : "https://expenses-tracker-swart-eight.vercel.app/api"; // direct deployed functions root
 
+const fetchUsers = useCallback(async () => {
+  try {
+    setLoading(true);
 
+    // call the function directly
+    const res = await fetch(`${FUNCTIONS_BASE_URL}/list-users`, { cache: "no-store" });
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${FUNCTIONS_BASE_URL}/list-users`);
+    // quick check: status
+    if (!res.ok) {
+      // try to read text for debugging
+      const txt = await res.text();
+      throw new Error(`Function returned ${res.status}: ${txt.slice(0, 400)}`);
+    }
+
+    // check Content-Type before parsing
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("application/json")) {
       const data = await res.json();
-
       if (!data.success) throw new Error(data.error || "Failed to fetch users");
-
       const sortedUsers = (data.users || []).sort((a: any, b: any) => {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return dateB - dateA;
       });
-
       setUsers(sortedUsers);
-    } catch (err: any) {
-      Swal.fire("Error", err.message || "Failed to load users", "error");
-    } finally {
-      setLoading(false);
+    } else {
+      // got HTML (index.html) or something else — show first chunk to debug
+      const txt = await res.text();
+      throw new Error(`Expected JSON but got ${contentType || "non-json"}. Response starts: ${txt.slice(0, 400)}`);
     }
-  }, []);
+  } catch (err: any) {
+    // show a clear message in UI
+    Swal.fire("Error", err.message || "Failed to load users", "error");
+    console.error("fetchUsers error:", err);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
   useEffect(() => {
     const checkAdminSession = async () => {
