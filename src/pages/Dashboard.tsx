@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom"; // <-- ADDED
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
 import Swal from "sweetalert2";
 import {
   BarChart,
@@ -504,30 +507,72 @@ export default function Dashboard(): JSX.Element {
     navigate("/");
   }
 
-  // --- EXPORT CSV
-  function exportCSV() {
-    if (expenses.length === 0) return Swal.fire("No expenses to export");
-    const headers = ["Description", "Amount", "Category", "Date"];
-    // keep amounts numeric in CSV so columns remain correct
-    const rows = expenses.map((e) => [
-      `"${e.description.replace(/"/g, '""') }`,
-      e.amount,
-      e.category,
-      new Date(e.created_at).toLocaleString(),
-    ]);
-    const csvContent =
-  "data:text/csv;charset=utf-8," +
-  [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
-  const encodedUri = encodeURI(csvContent);
-
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "expenses.csv");
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+const exportPDF = () => {
+  if (expenses.length === 0) {
+    return Swal.fire({
+      icon: 'info',
+      title: 'No Data',
+      text: 'There are no expenses to export.'
+    });
   }
+
+  const doc = new jsPDF();
+
+  // --- Header Section ---
+  doc.setFontSize(20);
+  doc.text("Expense Report", 14, 22);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`Report Date: ${new Date().toLocaleDateString()}`, 14, 30);
+  doc.text(`Total Records: ${expenses.length}`, 14, 35);
+
+  // --- Table Configuration ---
+  const tableColumn = ["Description", "Amount", "Category", "Date"];
+  const tableRows = expenses.map((e) => [
+    e.description,
+    // Formats number to currency style: 5000 -> 5,000.00
+    Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }),
+    e.category,
+    new Date(e.created_at).toLocaleDateString(),
+  ]);
+
+  // --- Generate Table ---
+  // Using autoTable as a function fixes the TypeScript error
+  autoTable(doc, {
+    head: [tableColumn],
+    body: tableRows,
+    startY: 45,
+    theme: "striped",
+    headStyles: {
+      fillColor: [237, 46, 26], // Your red theme
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 245],
+    },
+    margin: { top: 45 },
+  });
+
+  // --- Footer / Totals ---
+  // Access finalY via 'as any' or from the doc property after autoTable runs
+  const finalY = (doc as any).lastAutoTable.finalY || 45; 
+  const totalAmount = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.text(
+    `Grand Total: N${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    14,
+    finalY + 10
+  );
+
+  // Download PDF
+  doc.save(`Expenses_${new Date().getTime()}.pdf`);
+};
+
 
   // --- Derived stats
   const totalAmount = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
@@ -723,7 +768,13 @@ export default function Dashboard(): JSX.Element {
             </button>
           </form>
           <div className="flex items-center gap-3">
-            <button onClick={exportCSV} className="bg-indigo-600 text-white px-3 py-2 rounded-lg cursor-pointer">Export CSV</button>
+           <button 
+              onClick={exportPDF} 
+              className=" bg-purple-900 text-white px-3 py-2 rounded-lg cursor-pointer flex items-center  gap-2"
+            >
+              
+              Export PDF
+            </button>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleClearExpenses}
