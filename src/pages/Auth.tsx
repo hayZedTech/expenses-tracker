@@ -1,5 +1,4 @@
-// src/pages/Auth.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../contexts/useAuthStore';
@@ -21,6 +20,22 @@ export default function Auth() {
 
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
+  const { user } = useAuthStore();
+
+  // ✅ Prevent Auth page from redirecting to dashboard if a recovery link is detected
+  useEffect(() => {
+    const hash = window.location.hash;
+    const search = window.location.search;
+
+    if (hash.includes('type=recovery') || hash.includes('access_token=') || search.includes('code=')) {
+      console.log("Recovery flow detected, staying on Auth to allow route transition.");
+      return;
+    }
+
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   function isDuplicateEmailError(err: unknown) {
     const msg = (
