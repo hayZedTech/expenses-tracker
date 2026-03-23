@@ -13,7 +13,6 @@ import ToDoList from './pages/TodoList';
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user } = useAuthStore();
 
-  // If user is not logged in, redirect to Auth
   if (!user) {
     return <Navigate to="/" replace />;
   }
@@ -27,7 +26,6 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    // 1. Check for an active session on mount to sync the persistent store
     const initSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -40,8 +38,8 @@ export default function App() {
 
     initSession();
 
-    // 2. Listen for auth changes (Login, Logout, Password Recovery)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // ✅ Added underscore to _event to satisfy TypeScript's unused variable check
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setUser({ email: session.user.email!, fullname: session.user.user_metadata?.fullname });
       } else {
@@ -52,7 +50,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, [setUser, clearUser]);
 
-  // Prevent routing before we know the actual auth state
   if (initializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -63,11 +60,9 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Public routes */}
       <Route path="/" element={<Auth />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* Protected routes */}
       <Route
         path="/dashboard"
         element={
@@ -77,7 +72,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ To-Do List route (protected like dashboard) */}
       <Route
         path="/todos"
         element={
@@ -87,7 +81,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ Admin route (not protected by user auth) */}
       <Route path="/admin" element={<Admin />} />
     </Routes>
   );
