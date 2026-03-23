@@ -11,16 +11,29 @@ export default function ResetPassword() {
   const [recoveryReady, setRecoveryReady] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Properly handle Supabase password recovery session
   useEffect(() => {
+    // 1. Check if Supabase already established a session from the URL tokens
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log("✅ Session already active");
+        setRecoveryReady(true);
+        // Clean up URL to remove # and tokens
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    };
+
+    checkSession();
+
+    // 2. Listener for real-time recovery events
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" && session) {
-        console.log("✅ Recovery session active");
+      if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
+        console.log("✅ Recovery event triggered");
         setRecoveryReady(true);
       }
     });
 
-    // Handle direct link token manually if needed
+    // 3. Manual fallback for the hash (Implicit Flow)
     const checkTokenInUrl = async () => {
       const hash = window.location.hash;
       if (hash.includes("access_token")) {
@@ -30,10 +43,12 @@ export default function ResetPassword() {
         if (access_token) {
           await supabase.auth.setSession({ access_token, refresh_token: refresh_token || "" });
           setRecoveryReady(true);
-          window.history.replaceState(null, "", "/reset-password");
+          // Removes the '#' entirely by replacing with just the path
+          window.history.replaceState(null, "", window.location.pathname);
         }
       }
     };
+    
     checkTokenInUrl();
 
     return () => listener.subscription.unsubscribe();
@@ -50,6 +65,8 @@ export default function ResetPassword() {
       if (error) throw error;
 
       await Swal.fire("Success", "Password updated. You can now log in.", "success");
+      // Explicitly sign out to clear the recovery session before going to login
+      await supabase.auth.signOut();
       navigate("/");
     } catch (err: any) {
       Swal.fire("Error", err.message || "Failed to update password", "error");
@@ -59,7 +76,14 @@ export default function ResetPassword() {
   }
 
   if (!recoveryReady) {
-    return <p className="text-center mt-20">Preparing password reset... Please open the link from your email again if this persists.</p>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <p className="text-center text-gray-600 font-medium">
+          Preparing password reset... <br />
+          <span className="text-sm font-normal text-gray-400">Please open the link from your email again if this persists.</span>
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -67,7 +91,6 @@ export default function ResetPassword() {
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Reset Password</h2>
 
-        {/* Password field with eye toggle */}
         <div className="relative mb-4">
           <input
             type={showPassword ? "text" : "password"}
@@ -88,7 +111,7 @@ export default function ResetPassword() {
         <button
           onClick={handleUpdatePassword}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold w-full"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-semibold w-full transition-colors disabled:bg-gray-400"
         >
           {loading ? "Updating..." : "Update Password"}
         </button>
